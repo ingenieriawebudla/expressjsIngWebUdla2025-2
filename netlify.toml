@@ -1,0 +1,13 @@
+# Docs redirects/rewrites:
+# https://docs.netlify.com/manage/routing/redirects/overview/
+[build]
+  publish = "web"
+  functions = "netlify/functions"
+
+# Reescribe /api/* a la función "api" SIN cambiar el método HTTP (status 200).
+# Confirmación de que 200 preserva el método: 
+# https://answers.netlify.com/t/does-using-the-redirects-route-to-a-function-call-change-the-method-of-the-request-from-post-to-get/55760
+[[redirects]]
+  from = "/api/*"
+  to   = "/.netlify/functions/api/:splat"
+  status = 200
