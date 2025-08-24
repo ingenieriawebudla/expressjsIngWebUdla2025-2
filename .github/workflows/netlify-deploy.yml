@@ -1,0 +1,31 @@
+name: Deploy to Netlify
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Usa la acción oficial del CLI de Netlify (GitHub Marketplace)
+      # https://github.com/marketplace/actions/netlify-cli
+      - name: Netlify Deploy
+        uses: nwtgck/actions-netlify@v2
+        with:
+          publish-dir: "web"
+          functions-dir: "netlify/functions"
+          production-branch: "main"
+          production-deploy: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-commit-comment: false
+          # Si necesitas construir assets del front, agrega un paso de build antes.
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
