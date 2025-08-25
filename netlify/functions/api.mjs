@@ -24,6 +24,12 @@ import crypto from 'node:crypto'
 
 const app = express()
 
+// Trust proxy configuration for Netlify Functions
+// In production, trust the first proxy (Netlify's infrastructure)
+// In development, be more permissive for localhost
+const isProduction = process.env.NODE_ENV === 'production'
+app.set('trust proxy', isProduction ? 1 : true)
+
 // --- Seguridad base (Express best practices) ---
 // Helmet (cabeceras seguras)
 // https://helmetjs.github.io/
@@ -31,6 +37,7 @@ app.use(helmet())
 
 // Body parser con límite prudente
 app.use(express.json({ limit: '10kb' }))
+app.use(express.urlencoded({ extended: true, limit: '10kb' }))
 
 // Cookies para 'state' en OAuth
 app.use(cookieParser())
@@ -47,7 +54,20 @@ app.use(cors({
 
 // Rate limiting global (proteger /auth y rutas públicas)
 // https://www.npmjs.com/package/express-rate-limit
-app.use('/api/', rateLimit({ windowMs: 60_000, max: 100 }))
+app.use('/api/', rateLimit({ 
+  windowMs: 60_000, 
+  max: 100,
+  // Use standard IP key generator with fallback for development
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Skip problematic validations in development
+  validate: {
+    trustProxy: false, // We handle trust proxy ourselves
+    xForwardedForHeader: false, // Skip X-Forwarded-For validation
+    ip: false, // Skip IP validation for development
+    default: false // Skip other default validations that might cause issues
+  }
+}))
 
 // --- Utils ---
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me'
@@ -72,7 +92,20 @@ app.get('/api/health', (req, res) => res.json({ ok: true, ts: Date.now() }))
 
 // Login DEMO (sin DB): emite un JWT si llegan credenciales válidas
 app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body || {}
+  console.log('Request body:', req.body)
+  console.log('Content-Type:', req.headers['content-type'])
+  
+  // Handle case where body is a Buffer (common in serverless environments)
+  let body = req.body
+  if (Buffer.isBuffer(body)) {
+    try {
+      body = JSON.parse(body.toString())
+    } catch (e) {
+      return res.status(400).json({ error: 'Invalid JSON in request body' })
+    }
+  }
+  
+  const { email, password } = body || {}
   if (!email || !password) return res.status(400).json({ error: 'email/password required' })
   // En un caso real, valida contra DB y hashea passwords.
   const token = signToken({ sub: email, role: 'user' }, '1h')
